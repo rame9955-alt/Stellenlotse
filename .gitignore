@@ -1,0 +1,12 @@
+# Eigene Angaben und Geheimes: bleibt auf dem eigenen Rechner
+einstellungen.json
+gmail_app_passwort.txt
+lebenslauf.json
+beworben.json
+aussortiert.json
+Ergebnisse/
+
+# Erzeugtes
+__pycache__/
+.ruff_cache/
+*.tmp

@@ -1,0 +1,15 @@
+{
+  "name": "Erika Beispiel",
+  "anschrift": "Musterstraße 1, 10115 Berlin",
+  "telefon": "+49 30 123456",
+  "gmail": "erika.beispiel@gmail.com",
+  "lebenslauf_pdf": "C:\\Users\\DEIN-NAME\\Downloads\\Lebenslauf.pdf",
+  "absaetze": {
+    "IT": "Hier steht ein Absatz, der zu IT-Stellen passt: Was du kannst, was du schon gemacht hast.",
+    "Disposition": "Hier steht ein Absatz, der zu Disposition und Verkehr passt.",
+    "Logistik": "Hier steht ein Absatz, der zu Logistik passt.",
+    "Personal": "Hier steht ein Absatz, der zu Personalstellen passt.",
+    "Büro": "Hier steht ein Absatz für Büro und Sachbearbeitung. Er gilt auch, wenn für eine Art kein eigener Absatz da ist."
+  },
+  "schlussabsatz": "Hier steht ein Absatz, der in jedem Anschreiben vorkommt: Ausbildung, Sprachen, Führerschein. Leer lassen, wenn du ihn nicht brauchst."
+}

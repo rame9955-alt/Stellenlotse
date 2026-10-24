@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stellenlotse</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #f5f5f7; color: #1d1d1f; margin: 0; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 24px; margin: 0 0 16px; }
+  .karte { background: #fff; border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  label { display: block; font-size: 13px; color: #6e6e73; margin: 10px 0 4px; }
+  input[type=text], input[type=number] { width: 100%; box-sizing: border-box; font: inherit; padding: 10px 12px; border: 1px solid #d2d2d7; border-radius: 10px; }
+  input[type=number] { width: 90px; }
+  select { width: 100%; font: inherit; padding: 10px 8px; border: 1px solid #d2d2d7; border-radius: 10px; background: #fff; }
+  .neu { background: #34c759; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 6px; margin-right: 6px; vertical-align: 2px; }
+  .such { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid #e8e8ed; font-size: 14px; cursor: pointer; color: #0071e3; }
+  .such span:last-child { color: #6e6e73; flex-shrink: 0; }
+  .zeile { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; }
+  .zeile > div { flex: 1; min-width: 140px; }
+  .zeit label { display: inline; margin-right: 12px; color: #1d1d1f; font-size: 15px; }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 10px; }
+  #info { font-weight: 600; margin-bottom: 8px; }
+  .job { padding: 12px 0; border-top: 1px solid #e8e8ed; }
+  .job a { color: #0071e3; font-weight: 600; text-decoration: none; }
+  .klein { font-size: 13px; color: #6e6e73; margin-top: 3px; }
+  .weg { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid #e8e8ed; font-size: 14px; }
+  .weg button { background: #e8e8ed; padding: 4px 10px; font-size: 13px; flex-shrink: 0; }
+  .fehler { color: #c00; }
+  .blau { background: #0071e3; color: #fff; padding: 12px 20px; width: 100%; margin-top: 16px; font-weight: 600; }
+  .blau:disabled { background: #a1a1a6; }
+  .bew { padding: 14px 0; border-top: 1px solid #e8e8ed; }
+  .bew textarea { width: 100%; box-sizing: border-box; height: 180px; font: 13px/1.4 inherit; font-family: inherit; padding: 10px; border: 1px solid #d2d2d7; border-radius: 10px; margin-top: 6px; }
+  .bew input[type=text] { margin-top: 6px; }
+  .bew input.leer { border-color: #c00; background: #fff5f5; }
+  .bew .kopf { display: flex; gap: 10px; align-items: baseline; }
+  .knoepfe { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .grau { background: #e8e8ed; color: #1d1d1f; padding: 8px 14px; border-radius: 10px; font-size: 14px; text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Stellenlotse</h1>
+
+  <div class="karte" id="gespeichert" hidden>
+    <div style="font-weight:600">Gespeicherte Suchen</div>
+    <div id="liste3"></div>
+  </div>
+
+  <div class="karte">
+    <div style="font-weight:600">Lebenslauf</div>
+    <div class="klein">PDF hochladen (bleibt auf diesem Rechner): Das Programm schlägt Suchbegriffe vor und sortiert die Treffer nach Passung.</div>
+    <input id="cv" type="file" accept="application/pdf,.pdf">
+    <button id="cvKi" hidden>Zusätzlich mit KI erkennen (Ollama, dauert etwa 1 Minute)</button>
+    <div id="cvInfo" class="klein"></div>
+    <div id="cvFelder" class="klein"></div>
+    <div id="cvBerufe"></div>
+  </div>
+
+  <div class="karte">
+    <div class="zeile">
+      <div><label for="begriff">Suchbegriff</label><input id="begriff" type="text" value="Sachbearbeiter"></div>
+      <div><label for="stadt">PLZ</label><input id="stadt" type="text" inputmode="numeric" maxlength="5" placeholder="z. B. 10115"></div>
+      <div style="flex:0 0 120px; min-width:120px"><label for="umkreis">Umkreis</label>
+        <select id="umkreis">
+          <option value="">egal</option><option value="5">5 km</option><option value="10">10 km</option>
+          <option value="20">20 km</option><option value="30">30 km</option><option value="50">50 km</option>
+          <option value="100">100 km</option>
+          <option value="remote">bundesweit (nur Remote)</option>
+        </select></div>
+    </div>
+    <label>Quelle</label>
+    <div class="zeit">
+      <label><input type="checkbox" name="quelle" value="ka" checked> Kleinanzeigen</label>
+      <label><input type="checkbox" name="quelle" value="ba" checked> Arbeitsagentur</label>
+    </div>
+    <label>Arbeitszeit</label>
+    <div class="zeit">
+      <label><input type="radio" name="zeit" value="egal" checked> egal</label>
+      <label><input type="radio" name="zeit" value="voll"> Vollzeit</label>
+      <label><input type="radio" name="zeit" value="teil"> Teilzeit</label>
+      <label><input type="checkbox" id="ohneZA"> keine Zeitarbeit (nur Arbeitsagentur)</label>
+    </div>
+    <label for="homeoffice">Homeoffice</label>
+    <select id="homeoffice">
+      <option value="egal">egal</option>
+      <option value="moeglich">Homeoffice möglich oder Remote</option>
+      <option value="remote">nur 100 % Remote</option>
+    </select>
+    <label for="sortierung">Sortierung</label>
+    <select id="sortierung">
+      <option value="neu">NEU zuerst</option>
+      <option value="neueste">Datum: neueste zuerst</option>
+      <option value="aelteste">Datum: älteste zuerst</option>
+      <option value="passung">Passung zum Lebenslauf</option>
+    </select>
+    <div class="zeile">
+      <div><label for="abFirma">Firma ausblenden ab so vielen Anzeigen</label>
+        <input id="abFirma" type="number" min="2" value="3"></div>
+      <div><label for="abGleich">Gleiche Anzeige ausblenden ab so vielen Kopien</label>
+        <input id="abGleich" type="number" min="2" value="3"></div>
+    </div>
+    <button id="los" class="blau">Suche starten</button>
+  </div>
+
+  <div class="karte" id="ergebnis" hidden>
+    <div id="info"></div>
+    <div id="liste"></div>
+    <button id="vorb" class="blau">Bewerbungen für diese Jobs vorbereiten</button>
+  </div>
+
+  <div class="karte" id="bewerben" hidden>
+    <div style="font-weight:600">Bewerbungen</div>
+    <div class="klein">Pro Job: Text prüfen, „Anschreiben kopieren“, „Anzeige öffnen“, dort auf „Nachricht schreiben“ oder „Bewerben“, einfügen (Strg+V), selbst senden.</div>
+    <div id="liste4"></div>
+    <button id="entw" class="blau">Ausgewählte als Entwürfe in Gmail anlegen</button>
+    <div id="info4" class="klein"></div>
+  </div>
+
+  <div class="karte" id="ausgeblendet" hidden>
+    <div style="font-weight:600">Ausgeblendet</div>
+    <div id="liste2"></div>
+  </div>
+
+  <div class="karte" id="beworbenKarte" hidden>
+    <div id="bewKopf" style="font-weight:600"></div>
+    <div id="liste6"></div>
+  </div>
+
+  <div class="karte" id="aussortiert" hidden>
+    <div id="ausKopf" style="font-weight:600"></div>
+    <div id="liste5"></div>
+  </div>
+</main>
+
+<script>
+let alle = [], stand = {};   // stand: Kopfdaten der angezeigten Suche
+let aus = {};                // aussortierte Anzeigen (id -> Titel, Firma, Link), liegen dauerhaft in aussortiert.json
+let beworben = {};           // Bewerbungen, die raus sind (id -> Titel, Firma, Link, Datum, Art), liegen dauerhaft in beworben.json
+const zurueck = new Set();   // Firmen oder Gruppen, die der Nutzer wieder sehen will
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const norm = s => s.toLowerCase().replace(/[^a-zäöüß0-9]+/g, ' ').trim();
+const QUELLE = { ka: 'Kleinanzeigen', ba: 'Arbeitsagentur' };
+const adresseOK = s => /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(s);
+const fehlerText = e => '<span class="fehler">Fehler: ' + esc(String(e.message || e)) + '</span>';
+
+// Anfrage ans Programm; meldet es einen Fehler, wird er hier geworfen
+async function api(url, body) {
+  // der eigene Header zeigt dem Programm, dass die Anfrage von dieser Seite kommt und nicht von einer fremden
+  const kopf = { 'X-Requested-With': '__KENNUNG__' };  // __KENNUNG__ setzt das Programm beim Ausliefern der Seite ein (KENNUNG in app.py)
+  const d = await (await fetch(url, body === undefined ? { headers: kopf } : { method: 'POST', headers: kopf, body: JSON.stringify(body) })).json();
+  if (d.fehler) throw new Error(d.fehler);
+  return d;
+}
+
+$('los').onclick = async () => {
+  const bundesweit = $('umkreis').value === 'remote';  // bundesweit: ohne PLZ, nur Arbeitsagentur
+  if (!bundesweit && !/^\d{5}$/.test($('stadt').value.trim())) {
+    $('ergebnis').hidden = false;
+    $('info').innerHTML = '<span class="fehler">Bitte eine fünfstellige PLZ eingeben, z. B. 10115.</span>';
+    $('liste').innerHTML = '';
+    return;
+  }
+  const quellen = bundesweit ? ['ba'] : [...document.querySelectorAll('input[name=quelle]:checked')].map(q => q.value);
+  if (!quellen.length) {
+    $('ergebnis').hidden = false;
+    $('info').innerHTML = '<span class="fehler">Bitte mindestens eine Quelle wählen.</span>';
+    $('liste').innerHTML = '';
+    return;
+  }
+  $('stadt').value = $('stadt').value.trim();
+  $('los').disabled = true;
+  $('los').textContent = 'Läuft, liest alle Seiten (etwa 1 Minute) ...';
+  try {
+    uebernehmen(await api('/suche?' + new URLSearchParams({ begriff: $('begriff').value, stadt: $('stadt').value, umkreis: $('umkreis').value, quellen: quellen.join(',') })));
+    liste();
+  } catch (e) {
+    $('ergebnis').hidden = false;
+    $('info').innerHTML = fehlerText(e);
+    $('liste').innerHTML = '';
+  }
+  $('los').disabled = false;
+  $('los').textContent = 'Suche starten';
+};
+let aktuelleEchte = [], vorbereitet = [];
+
+$('vorb').onclick = async () => {
+  $('vorb').disabled = true;
+  $('vorb').textContent = `Liest ${aktuelleEchte.length} Anzeigen im Detail ...`;
+  try {
+    const schon = await api('/entwuerfe');
+    const d = await api('/vorbereiten', aktuelleEchte);
+    vorbereitet = d.map(b => ({ ...b, anzeige: aktuelleEchte.find(a => a.id === b.id), schon: schon[b.id] }));
+    $('bewerben').hidden = false;
+    $('liste4').innerHTML = vorbereitet.map((b, i) => `<div class="bew">
+      <div style="font-size:15px"><b>${esc(b.anzeige.titel)}</b></div>
+      <div class="klein">${esc(b.anzeige.firma || 'ohne Firmenname')} · Anschreiben: ${esc(b.art)}</div>
+      <div class="knoepfe">
+        <button class="grau" data-kopie="${i}">Anschreiben kopieren</button>
+        <a class="grau" href="${esc(b.anzeige.link)}" target="_blank" rel="noopener">Anzeige öffnen</a>
+        <button class="grau" data-weg="${i}">Nicht interessant</button>
+      </div>
+      <textarea id="tx${i}">${esc(b.text)}</textarea>
+      <div class="kopf" style="margin-top:8px"><input type="checkbox" id="h${i}" ${b.an && !b.schon ? 'checked' : ''}>
+        <label for="h${i}" style="margin:0;color:#1d1d1f">Als Gmail-Entwurf anlegen${b.schon ? (b.schon.gesendet ? ' (schon gesendet am ' + esc(b.schon.gesendet) + ')' : b.schon.sendet ? ' (Versand unklar seit ' + esc(b.schon.sendet) + ')' : b.schon.datum ? ' (schon angelegt am ' + esc(b.schon.datum) + ')' : '') : ''}</label></div>
+      <div class="klein fehler" id="kein${i}" ${b.an ? 'hidden' : ''}>${b.lesefehler ? '<b>Anzeigentext konnte nicht geladen werden</b> (' + esc(b.lesefehler) + '), deshalb wurde keine Adresse gesucht. Erneut vorbereiten oder Adresse selbst eintragen.' : '<b>Keine E-Mail-Adresse gefunden.</b> Adresse eintragen oder leer lassen (Entwurf ohne Empfänger).' + (b.unsicher ? ' Im Text steht <b>' + esc(b.unsicher) + '</b> (ungewöhnliche Endung, bitte prüfen und selbst eintragen).' : '')}</div>
+      <input type="text" id="an${i}" class="${b.an ? '' : 'leer'}" value="${esc(b.an)}" placeholder="E-Mail-Adresse">
+      <input type="text" id="be${i}" value="${esc(b.betreff)}">
+      <div class="knoepfe">
+        <button class="grau" id="d${i}" style="flex:1">Als Entwurf speichern</button>
+        <button class="blau" id="s${i}" style="flex:1;width:auto;margin-top:0" disabled>Senden</button>
+        <button class="grau" id="v${i}" style="flex:1">E-Mail versendet</button>
+      </div>
+      <div class="klein" id="st${i}"></div>
+      </div>`).join('');
+    $('liste4').querySelectorAll('[data-kopie]').forEach(k => k.onclick = async () => {
+      const feld = $('tx' + k.dataset.kopie);
+      let ok = false;
+      try { await navigator.clipboard.writeText(feld.value); ok = true; }
+      catch { feld.select(); ok = document.execCommand('copy'); }  // Ersatzweg, falls der Browser die Zwischenablage sperrt
+      k.textContent = ok ? 'Kopiert ✓' : 'Bitte Text markieren und Strg+C';
+      setTimeout(() => k.textContent = 'Anschreiben kopieren', 2500);
+    });
+    $('liste4').querySelectorAll('[data-weg]').forEach(k => k.onclick = async () => {
+      const i = +k.dataset.weg, a = vorbereitet[i].anzeige;
+      try {
+        aus = await api('/aussortieren', { id: a.id, titel: a.titel, firma: a.firma || '', link: a.link });
+        $('h' + i).checked = false;               // kein Entwurf mehr für diese Anzeige
+        k.closest('.bew').hidden = true;
+        zeigen();                                  // auch aus der Ergebnisliste nehmen
+      } catch (e) { alert('Fehler: ' + (e.message || e)); }
+    });
+    // "E-Mail versendet": der Nutzer hat den Entwurf selbst in Gmail gesendet; die Bewerbung wandert in die Liste "Beworben"
+    $('liste4').querySelectorAll('[id^=v]').forEach(k => /^v\d+$/.test(k.id) && (k.onclick = async () => {
+      const i = +k.id.slice(1), a = vorbereitet[i].anzeige;
+      try {
+        beworben = await api('/beworben-markieren', { id: a.id, titel: a.titel, firma: a.firma || '', link: a.link });
+        $('h' + i).checked = false;               // kein weiterer Entwurf für diese Anzeige
+        k.closest('.bew').hidden = true;
+        zeigen();                                  // auch aus der Ergebnisliste nehmen
+      } catch (e) { alert('Fehler: ' + (e.message || e)); }
+    }));
+    // Senden geht nur mit gültiger Adresse und nur einmal pro Bewerbung
+    const sendenPruefen = i => $('s' + i).disabled = !!vorbereitet[i].gesendet || !adresseOK($('an' + i).value.trim());
+    vorbereitet.forEach((b, i) => {
+      if (b.schon && (b.schon.gesendet || b.schon.sendet)) {  // gesendet, oder Ausgang unklar: nichts mehr anlegen oder senden
+        b.gesendet = true;
+        $('h' + i).checked = false;
+        $('h' + i).disabled = true;
+        $('d' + i).disabled = true;
+        $('v' + i).disabled = true;
+        $('st' + i).textContent = b.schon.gesendet ? 'Schon gesendet am ' + b.schon.gesendet + '.' : 'Versand unklar geblieben: bitte in Gmail unter „Gesendet“ nachsehen.';
+      }
+      sendenPruefen(i);
+      // Entwurf nur für diese eine Bewerbung; leere Adresse ist erlaubt (Entwurf ohne Empfänger)
+      $('d' + i).onclick = async () => {
+        const an = $('an' + i).value.trim();
+        if (an && !adresseOK(an)) return alert('Ungültige E-Mail-Adresse: ' + an);
+        $('d' + i).disabled = true;
+        $('st' + i).textContent = 'Lege Entwurf an ...';
+        try {
+          const r = (await api('/entwurf', [{ id: b.id, an, betreff: $('be' + i).value, text: $('tx' + i).value }]))[0];
+          if (!r.ok) throw new Error(r.fehler || 'Entwurf nicht angelegt');
+          $('h' + i).checked = false;
+          $('st' + i).textContent = 'Entwurf in Gmail angelegt ✓ (Gmail, Ordner „Entwürfe“). Änderst du etwas, kannst du ihn neu speichern; gesendet wird der Entwurf nicht automatisch.';
+        } catch (e) {
+          $('st' + i).innerHTML = fehlerText(e);
+          $('d' + i).disabled = !!b.gesendet;
+        }
+      };
+      ['an', 'be', 'tx'].forEach(p => $(p + i).addEventListener('input', () => { $('d' + i).disabled = !!b.gesendet; }));
+      $('an' + i).oninput = () => {
+        const da = !!$('an' + i).value.trim();
+        if (da && !b.gesendet) $('h' + i).checked = true;
+        $('kein' + i).hidden = da;
+        $('an' + i).classList.toggle('leer', !da);
+        sendenPruefen(i);
+      };
+      $('s' + i).onclick = async () => {
+        const an = $('an' + i).value.trim(), betreff = $('be' + i).value;
+        if (!confirm(`Jetzt wirklich senden?\n\nAn: ${an}\nBetreff: ${betreff}\nAnhang: Lebenslauf (PDF)\n\nDas lässt sich nicht zurückholen.`)) return;
+        $('s' + i).disabled = true;
+        $('st' + i).textContent = 'Sende ...';
+        try {
+          const a = b.anzeige;
+          const r = await api('/senden', { id: b.id, an, betreff, text: $('tx' + i).value, titel: a.titel, firma: a.firma || '', link: a.link });
+          b.gesendet = true;
+          $('v' + i).disabled = true;
+          api('/beworben').then(d => { beworben = d; zeigen(); }).catch(() => {});  // Liste "Beworben" und Ergebnisliste nachziehen
+          $('h' + i).checked = false;
+          $('h' + i).disabled = true;
+          $('d' + i).disabled = true;
+          $('st' + i).textContent = `Gesendet an ${an} ✓` + (r.entwurf_geloescht === false ? ' (der Entwurf in Gmail konnte nicht entfernt werden, bitte selbst löschen)' : '');
+        } catch (e) {
+          $('st' + i).innerHTML = fehlerText(e);
+          sendenPruefen(i);
+        }
+      };
+    });
+    $('entw').hidden = false;
+    $('bewerben').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) {
+    alert('Fehler: ' + (e.message || e));
+  }
+  $('vorb').disabled = false;
+  $('vorb').textContent = 'Bewerbungen für diese Jobs vorbereiten';
+};
+
+$('entw').onclick = async () => {
+  const liste = vorbereitet.map((b, i) => $('h' + i).checked
+      ? { id: b.id, an: $('an' + i).value.trim(), betreff: $('be' + i).value, text: $('tx' + i).value } : null)
+    .filter(Boolean);
+  const falsch = liste.filter(b => b.an && !adresseOK(b.an));  // leer ist erlaubt, eingetippt muss es eine Adresse sein
+  if (!liste.length) return alert('Keine Bewerbung ausgewählt.');
+  if (falsch.length) return alert(`${falsch.length} ausgewählte Bewerbung(en) mit ungültiger E-Mail-Adresse: ${falsch.map(b => b.an).join(', ')}`);
+  $('entw').disabled = true;
+  $('info4').textContent = `Lege ${liste.length} Entwürfe an ...`;
+  try {
+    const d = await api('/entwurf', liste);
+    const ok = d.filter(x => x.ok).length;
+    const fehler = d.find(x => !x.ok && x.fehler);
+    $('info4').textContent = `${ok} von ${liste.length} Entwürfen in Gmail angelegt.` +
+      (fehler ? ` Nicht angelegt: ${fehler.fehler}. Die angelegten sind abgewählt, ein erneuter Klick legt nur den Rest an.` : ' Öffne Gmail, Ordner „Entwürfe“, prüfen und senden.');
+    vorbereitet.forEach((b, i) => { if (d.find(x => x.id === b.id && x.ok)) $('h' + i).checked = false; });
+  } catch (e) {
+    $('info4').innerHTML = fehlerText(e);
+  }
+  $('entw').disabled = false;
+};
+
+function uebernehmen(d) {
+  alle = d.anzeigen;
+  stand = d;
+  zurueck.clear();
+  $('begriff').value = d.begriff; $('stadt').value = d.stadt; $('umkreis').value = d.umkreis || '';
+  document.querySelectorAll('input[name=quelle]').forEach(q => q.checked = (d.quellen || ['ka']).includes(q.value));
+  zeigen();
+}
+
+async function liste() {
+  const l = await api('/gespeichert');
+  $('gespeichert').hidden = !l.length;
+  $('liste3').innerHTML = l.map(s => `<div class="such" data-d="${esc(s.datei)}">
+      <span>${esc(s.begriff)} · ${s.umkreis === 'remote' ? 'bundesweit Remote' : esc(s.stadt) + ' · ' + (s.umkreis ? esc(s.umkreis) + ' km' : 'Umkreis egal')} · ${s.quellen.map(q => QUELLE[q]).join(' + ')}</span><span>${esc(s.zeit)}</span></div>`).join('');
+  $('liste3').querySelectorAll('.such').forEach(el => el.onclick = async () => {
+    try { uebernehmen(await api('/laden?datei=' + encodeURIComponent(el.dataset.d))); }
+    catch (e) { alert('Fehler: ' + (e.message || e)); }
+  });
+}
+liste();
+
+function ausZeigen() {
+  const eintraege = Object.entries(aus);
+  $('aussortiert').hidden = !eintraege.length;
+  $('ausKopf').textContent = `Aussortiert (${eintraege.length})`;
+  $('liste5').innerHTML = eintraege.map(([id, a]) => `<div class="weg"><span><a href="${esc(a.link)}" target="_blank" rel="noopener">${esc(a.titel)}</a>${a.firma ? ' · ' + esc(a.firma) : ''}</span><button data-id="${esc(id)}">zurückholen</button></div>`).join('');
+  $('liste5').querySelectorAll('button').forEach(b => b.onclick = async () => {
+    try { aus = await api('/zurueckholen', { id: b.dataset.id }); zeigen(); }
+    catch (e) { alert('Fehler: ' + (e.message || e)); }
+  });
+}
+function bewZeigen() {
+  const eintraege = Object.entries(beworben).reverse();  // zuletzt Eingetragene zuerst
+  $('beworbenKarte').hidden = !eintraege.length;
+  $('bewKopf').textContent = `Beworben (${eintraege.length})`;
+  $('liste6').innerHTML = eintraege.map(([id, a]) => `<div class="weg"><span>${a.link ? `<a href="${esc(a.link)}" target="_blank" rel="noopener">${esc(a.titel)}</a>` : esc(a.titel)}${a.firma ? ' · ' + esc(a.firma) : ''}<br><span class="klein">${esc(a.datum || '')} · ${esc(a.art || '')}</span></span><button data-id="${esc(id)}">zurückholen</button></div>`).join('');
+  $('liste6').querySelectorAll('button').forEach(b => b.onclick = async () => {
+    try { beworben = await api('/beworben-entfernen', { id: b.dataset.id }); zeigen(); }
+    catch (e) { alert('Fehler: ' + (e.message || e)); }
+  });
+}
+Promise.all([api('/aussortiert'), api('/beworben')]).then(([a, b]) => { aus = a; beworben = b; zeigen(); }).catch(() => {});
+
+document.querySelectorAll('input[name=zeit], #ohneZA, #abFirma, #abGleich, #sortierung, #homeoffice').forEach(el => el.oninput = () => alle.length && zeigen());
+
+// Remote oder Homeoffice nach Titel, Text und (bei der Arbeitsagentur) dem Merkmal "Homeoffice möglich".
+// Gibt 'remote' (komplett von zu Hause), 'moeglich' (Homeoffice, oft nur einzelne Tage) oder '' zurück.
+// Das Merkmal der Arbeitsagentur ist bei vielen Remote-Stellen nicht gesetzt, deshalb zählen auch Stichwörter.
+const VOLL_RE = /100\s?%\s*(remote|home\s?-?office|mobil)|(remote|home\s?-?office)\W{0,6}100\s?%|\bfull[\s-]?remote\b|(komplett|vollständig|ausschließlich|rein)\w*\s+(remote|von zu hause|im home\s?-?office)/i;   // ausdrücklich komplett
+const TEIL_RE = /\b\d{1,2}\s?%\s*(remote|home\s?-?office)|remote\W{0,3}(möglich|optional|teilweise|hybrid|nach absprache)|teil(weise)?[\s-]*remote|hybrid|(remote|home\s?-?office)\s*(&|und|\/|oder)\s*(präsenz|büro|office|vor ort)|(präsenz|büro|vor ort)\s*(&|und|\/|oder)\s*(remote|home\s?-?office)/i;   // ausdrücklich nur teilweise (u. a. "hybrides Arbeiten (Remote & Präsenz)")
+const REMOTE_RE = /\bremote\b(?![\s-]*(support|access|desktop|zugriff|wartung|service|monitoring|steuerung|administration))/i;   // das Wort allein
+const HOME_RE = /home\s?-?office|mobiles?\s+arbeiten|mobile\s+work|von\s+zu\s+hause|hybrid|arbeiten\s+von\s+überall/i;
+function homeofficeArt(a) {
+  const t = `${a.titel || ''} ${a.text || ''}`;
+  if (VOLL_RE.test(t)) return 'remote';
+  if (TEIL_RE.test(t)) return 'moeglich';
+  if (REMOTE_RE.test(t)) return 'remote';
+  return a.homeoffice === true || HOME_RE.test(t) ? 'moeglich' : '';
+}
+// Lebenslauf: erkannte Berufe und Wörter kommen vom Programm (lebenslauf.py); Beruf im Titel zählt 5, jedes Wort in Titel oder Text 1
+let profil = {};
+function passung(a) {
+  if (!profil.berufe) return 0;
+  const titel = norm(a.titel), t = titel + ' ' + norm(a.text || '');
+  return profil.berufe.reduce((s, b) => s + (titel.includes(norm(b)) ? 5 : 0), 0) + profil.woerter.reduce((s, w) => s + (t.includes(norm(w)) ? 1 : 0), 0);
+}
+function profilZeigen(meldung) {
+  $('cvInfo').textContent = meldung || (profil.berufe ? 'Erkannt, Klick auf einen Beruf setzt den Suchbegriff:' : '');
+  $('cvKi').hidden = !profil.berufe;
+  $('cvFelder').textContent = (profil.felder || []).length ? 'Berufsfelder der Arbeitsagentur, die zum Lebenslauf passen: ' + profil.felder.join(' · ') : '';
+  $('cvBerufe').innerHTML = (profil.berufe || []).map(b => `<button class="cvb" data-b="${esc(b)}">${esc(b)} <span class="klein">${profil.treffer[b][0] === 'KI' ? 'KI' : profil.treffer[b].length}</span></button>`).join(' ');
+  $('cvBerufe').querySelectorAll('button').forEach(k => k.onclick = () => { $('begriff').value = k.dataset.b; });
+}
+$('cv').onchange = async () => {
+  const f = $('cv').files[0];
+  if (!f) return;
+  $('cvInfo').textContent = 'Lese Lebenslauf ...';
+  try {
+    const b64 = await new Promise((ok, nein) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = nein; r.readAsDataURL(f); });
+    profil = await api('/lebenslauf', { pdf: b64 });
+    profilZeigen();
+    if (alle.length) zeigen();
+  } catch (e) { $('cvInfo').innerHTML = fehlerText(e); }
+};
+$('cvKi').onclick = async () => {
+  $('cvKi').disabled = true;
+  $('cvInfo').textContent = 'Die KI liest den Lebenslauf ...';
+  try {
+    profil = await api('/lebenslauf-ki', {});  // POST: ohne Inhalt würde api() die Seite per GET abrufen
+    profilZeigen('Die KI-Berufe stehen vorn (Markierung „KI“). Klick setzt den Suchbegriff:');
+    if (alle.length) zeigen();
+  } catch (e) { $('cvInfo').innerHTML = fehlerText(e); }
+  $('cvKi').disabled = false;
+};
+api('/profil').then(p => { profil = p; if (p.berufe) profilZeigen('Zuletzt hochgeladener Lebenslauf. Klick auf einen Beruf setzt den Suchbegriff:'); }).catch(() => {});
+
+function passtHome(a) {
+  const w = $('homeoffice').value;
+  return w === 'egal' || (w === 'remote' ? homeofficeArt(a) === 'remote' : homeofficeArt(a) !== '');
+}
+
+// Wann eine Anzeige eingestellt wurde, als Zeitwert (0 = unbekannt). Kleinanzeigen schreibt "Heute, 11:06", "Gestern, 15:08" oder "29.09.2026",
+// die Arbeitsagentur "21.10.2026". "Heute" und "Gestern" gelten für den Tag der Suche (stand.zeit "23.10. 12:44"), nicht für den Tag, an dem du sie ansiehst.
+function eingestellt(a) {
+  const t = String(a.datum || '');
+  let m = t.match(/^(\d\d)\.(\d\d)\.(\d{4})/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1]).getTime();
+  m = t.match(/^(Heute|Gestern)(?:, (\d\d):(\d\d))?/);
+  const s = String(stand.zeit || '').match(/^(\d\d)\.(\d\d)\./);
+  if (!m || !s) return 0;
+  const tag = new Date(new Date().getFullYear(), +s[2] - 1, +s[1]);
+  if (tag > new Date()) tag.setFullYear(tag.getFullYear() - 1);  // Suche aus dem Vorjahr (Monat liegt später als heute)
+  if (m[1] === 'Gestern') tag.setDate(tag.getDate() - 1);
+  return tag.getTime() + (m[2] ? (+m[2] * 60 + +m[3]) * 60000 : 0);
+}
+
+function passtZeit(a) {
+  const z = document.querySelector('input[name=zeit]:checked').value;
+  if ($('ohneZA').checked && a.zeitarbeit) return false;  // nur die Arbeitsagentur sagt, was Zeitarbeit ist
+  if (a.arbeitszeit !== undefined) return z === 'egal' || !a.arbeitszeit || a.arbeitszeit === z;  // Arbeitsagentur liefert die Arbeitszeit mit
+  const t = (a.titel + ' ' + a.text).toLowerCase();
+  const voll = t.includes('vollzeit'), teil = /teilzeit|minijob|aushilfe/.test(t);
+  if (z === 'voll') return !(teil && !voll);
+  if (z === 'teil') return !(voll && !teil);
+  return true;
+}
+
+function zeigen() {
+  ausZeigen();
+  bewZeigen();
+  if (!alle.length) return;  // noch keine Suche geladen: nur die Kästen "Beworben" und "Aussortiert" sind zu zeigen
+  const abFirma = Math.max(2, +$('abFirma').value || 3);
+  const abGleich = Math.max(2, +$('abGleich').value || 3);
+
+  // 1. Firmen mit vielen Anzeigen
+  const proFirma = {};
+  alle.forEach(a => { if (a.firma) proFirma[a.firma] = (proFirma[a.firma] || 0) + 1; });
+  const firmaWeg = f => f && proFirma[f] >= abFirma && !zurueck.has('f:' + f);
+
+  // 2. Gleiche Anzeige mehrfach: gleiche Firma und gleicher Titel ohne Ortsnamen und PLZ
+  const schluessel = a => {
+    const ortWorte = norm(a.ort).split(' ');
+    return norm(a.firma) + '|' + norm(a.titel).split(' ').filter(w => !ortWorte.includes(w) && w !== norm(stand.stadt || '')).join(' ');
+  };
+  const gruppen = {};
+  alle.forEach(a => (gruppen[schluessel(a)] ||= []).push(a));
+
+  const echte = [], wegGruppen = [];
+  Object.entries(gruppen).forEach(([k, g]) => {
+    if (firmaWeg(g[0].firma)) return;  // steht schon unter der Firma bei „Ausgeblendet“
+    if (g.length >= abGleich && !zurueck.has('g:' + k)) { wegGruppen.push([k, g]); return; }
+    const a = g.find(a => passtZeit(a) && passtHome(a) && !aus[a.id] && !beworben[a.id]);  // aussortierte und schon beworbene Anzeigen werden nie gezeigt
+    if (a) echte.push({ ...a, mal: g.length });
+  });
+
+  $('ergebnis').hidden = false;
+  const sortierung = $('sortierung').value;
+  if (sortierung === 'neu') echte.sort((x, y) => (y.neu === true) - (x.neu === true));  // NEU nach oben
+  else if (sortierung === 'passung') {  // Passung einmal je Anzeige berechnen; bei gleicher Punktzahl NEU zuerst, dann neueste
+    echte.forEach(a => a.p = passung(a));
+    echte.sort((x, y) => (y.p - x.p) || ((y.neu === true) - (x.neu === true)) || (eingestellt(y) - eingestellt(x)));
+  }
+  else {  // nach Datum; Anzeigen ohne Datum stehen immer ganz unten
+    const richtung = sortierung === 'neueste' ? -1 : 1;
+    echte.sort((x, y) => (!eingestellt(x) - !eingestellt(y)) || richtung * (eingestellt(x) - eingestellt(y)));
+  }
+  aktuelleEchte = echte;
+  $('vorb').hidden = !echte.length;
+  const neue = echte.filter(a => a.neu === true).length;
+  const anzahl = stand.anzahl || { Kleinanzeigen: alle.length };
+  const gelesen = Object.entries(anzahl).map(([q, n]) => `${n} ${q}` + (q === 'Kleinanzeigen' ? ` (${stand.seiten} Seiten)` : '')).join(' + ');
+  $('info').textContent = `${gelesen} gelesen, Stand ${stand.zeit}, ${echte.length} echte` + (neue ? `, davon ${neue} neu` : '');
+  if (stand.ort_ka) $('info').insertAdjacentHTML('afterbegin', `<div class="klein" style="font-weight:400">Kleinanzeigen sucht in: ${esc(stand.ort_ka)}</div>`);
+  $('liste').innerHTML = echte.map(a => `<div class="job">
+      ${a.neu === true ? '<span class="neu">NEU</span>' : ''}${profil.berufe ? `<span class="klein" title="Treffer aus deinem Lebenslauf">[Passung ${a.p ?? passung(a)}] </span>` : ''}<a href="${esc(a.link)}" target="_blank" rel="noopener">${esc(a.titel)}</a>
+      <div class="klein">${esc(a.ort)}${a.entfernung ? ' (' + esc(a.entfernung) + ')' : ''}${a.datum ? ' · ' + esc(a.datum) : ''}${a.firma ? ' · ' + esc(a.firma) : ' · ohne Firmenname'}${a.mal > 1 ? ' · ' + a.mal + '× eingestellt' : ''} · ${esc(a.quelle || 'Kleinanzeigen')}${a.zeitarbeit ? ' · Zeitarbeit' : ''}${{ remote: ' · Remote', moeglich: ' · Homeoffice möglich' }[homeofficeArt(a)] || ''}</div>
+      <div class="klein">${esc(a.text)}</div></div>`).join('') || '<div class="klein">Keine Anzeigen übrig.</div>';
+
+  const wegFirmen = Object.entries(proFirma).filter(([f]) => firmaWeg(f)).sort((x, y) => y[1] - x[1]);
+  const zeilen = [
+    ...wegFirmen.map(([f, n]) => `<div class="weg"><span>${esc(f)} <b>${n}×</b></span><button data-k="f:${esc(f)}">zeigen</button></div>`),
+    ...wegGruppen.map(([k, g]) => `<div class="weg"><span>Gleiche Anzeige <b>${g.length}×</b>: ${esc(g[0].titel)}</span><button data-k="g:${esc(k)}">zeigen</button></div>`),
+  ];
+  $('ausgeblendet').hidden = !zeilen.length;
+  $('liste2').innerHTML = zeilen.join('');
+  $('liste2').querySelectorAll('button').forEach(b => b.onclick = () => { zurueck.add(b.dataset.k); zeigen(); });
+}
+</script>
+</body>
+</html>
