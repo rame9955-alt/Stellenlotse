@@ -1,9 +1,11 @@
 """Stellenlotse: liest Kleinanzeigen und die Jobbörse der Arbeitsagentur, das Dashboard filtert Doppelanzeigen."""
 import base64
+import html
 import json
 import os
 import re
 import threading
+import time
 import urllib.request
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor
@@ -11,7 +13,7 @@ from contextlib import ExitStack, contextmanager
 from datetime import datetime
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import urlencode, urlparse, parse_qs, urljoin
+from urllib.parse import quote, urlencode, urlparse, parse_qs, urljoin
 
 from playwright.sync_api import sync_playwright
 
@@ -29,7 +31,16 @@ BA = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc"
 BA_SCHLUESSEL = {"X-API-Key": "jobboerse-jobsuche"}
 BA_MAX_SEITEN = 20  # je 100 Stellen
 BA_REMOTE_SEITEN = 5  # bei der bundesweiten Remote-Suche je Suchwort höchstens 500 Stellen, sonst dauert es zu lange
-KENNUNG = "KleinanzeigenScrapperJobs"  # Wert des Headers X-Requested-With; wird beim Ausliefern in die Seite eingesetzt
+ST_BASIS = "https://www.stepstone.de"
+ST_MAX_SEITEN = 8  # je 25 Anzeigen; bei "Sachbearbeiter" Berlin enden die passenden Treffer nach etwa 6 Seiten
+ST_PAUSE = 0.5  # Sekunden zwischen zwei Seiten, damit StepStone nicht gedrosselt wird
+ST_VERSUCHE = 3
+ST_KOPF = {  # wie ein Browser; mit weniger Headern antwortet StepStone bei Anzeigenseiten nicht
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+    "Referer": ST_BASIS + "/", "Upgrade-Insecure-Requests": "1", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "same-origin",
+}
+KENNUNG = "Stellenlotse"  # Wert des Headers X-Requested-With; wird beim Ausliefern in die Seite eingesetzt
 SEITE = (Path(__file__).parent / "index.html").read_text("utf-8").replace("__KENNUNG__", KENNUNG).encode("utf-8")
 ORDNER = bewerbung.ERGEBNISSE
 
@@ -159,11 +170,81 @@ def arbeitsagentur_remote(begriff):
     return [_ba_anzeige(j, zeitarbeit) for j in jobs.values()]
 
 
+def _st_holen(url):
+    """Seite von StepStone als Text. Ohne die vollen Browser-Header antwortet StepStone bei Anzeigenseiten nicht (Zeitüberschreitung)."""
+    url = quote(url, safe=":/?&=%")  # Umlaute und Sonderzeichen im Link (urllib versteht nur ASCII)
+    for n in range(ST_VERSUCHE):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=ST_KOPF), timeout=25) as r:
+                return r.read().decode("utf-8", "ignore")
+        except OSError:
+            if n == ST_VERSUCHE - 1:
+                raise
+            time.sleep(1 + n)
+
+
+def _st_treffer(seite_text):
+    """Die Anzeigen einer Suchseite: StepStone legt sie als JSON in ein Skript der Seite, die Anführungszeichen des JSON als &#34;.
+    Nur diese werden zurückgetauscht: ein &quot; im Anzeigentext darf nicht zu einem echten Anführungszeichen werden (das bricht das JSON)."""
+    for m in re.finditer(r"<script[^>]*>(.*?)</script>", seite_text, re.S):
+        if "harmonisedId" in m.group(1):
+            s = m.group(1).replace("&#34;", '"')
+            return json.JSONDecoder().raw_decode(s[s.rfind("[", 0, s.index('{"harmonisedId"')):])[0]
+    return []
+
+
+def _st_anzeige(j):
+    tag = (j.get("datePosted") or "")[:10]
+    return {
+        "id": f"st-{j['id']}",
+        "link": html.unescape(j["url"]).split("?")[0],
+        "titel": html.unescape(j.get("title", "")),
+        "ort": html.unescape(j.get("location", "")),
+        "datum": ".".join(reversed(tag.split("-"))) if tag else "",
+        "entfernung": "",
+        "text": html.unescape(j.get("textSnippet", "")),
+        "firma": "" if j.get("isAnonymous") else html.unescape(j.get("companyName", "")),
+        "homeoffice": j.get("workFromHome") in (1, 2),  # 0 = vor Ort; was 1 und 2 genau heißen, sagt StepStone nicht (2 steht bei Stellen mit "Home-Office" im Ort)
+        "quelle": "StepStone",
+    }
+
+
+def stepstone(begriff, plz, umkreis):
+    """Suchergebnisse von stepstone.de; nur "main" (zur Suche passend), nicht die lose verwandten Vorschläge. Höchstens ST_MAX_SEITEN Seiten à 25."""
+    wort = quote(re.sub(r"\W+", "-", begriff.strip().lower()).strip("-"))
+    pfad = f"{ST_BASIS}/jobs/{wort}/in-{plz}"
+    anzeigen = {}
+    for n in range(1, ST_MAX_SEITEN + 1):
+        felder = {**({"radius": umkreis} if umkreis else {}), **({"page": n} if n > 1 else {})}
+        main = [j for j in _st_treffer(_st_holen(pfad + ("?" + urlencode(felder) if felder else ""))) if j.get("section") == "main"]
+        neu = [j for j in main if f"st-{j['id']}" not in anzeigen]
+        anzeigen.update({f"st-{j['id']}": _st_anzeige(j) for j in neu})
+        if not neu:  # hinter der letzten passenden Seite kommen nur noch Vorschläge
+            break
+        time.sleep(ST_PAUSE)
+    return list(anzeigen.values())
+
+
+def stepstone_text(link):
+    """Beschreibung einer StepStone-Anzeige (JobPosting in den Seitendaten) als Text, mit den Adressen aus mailto-Links."""
+    for m in re.finditer(r'<script type="application/ld\+json"[^>]*>(.*?)</script>', _st_holen(link), re.S):
+        d = json.loads(m.group(1))
+        if isinstance(d, dict) and d.get("@type") == "JobPosting":
+            roh = html.unescape(d.get("description", ""))
+            mails = re.findall(r'mailto:([^"\'?\s>]+)', roh)
+            return re.sub(r"<[^>]+>", " ", roh) + " " + " ".join(mails)
+    return ""
+
+
 def suchen(begriff, stadt, umkreis, quellen):
     if umkreis == "remote":  # bundesweit: nur Arbeitsagentur, Kleinanzeigen hat keine Remote-Angabe und ist an den Ort gebunden
         ba = arbeitsagentur_remote(begriff)
         return {"seiten": 0, "ort_ka": "", "anzeigen": ba, "anzahl": {"Arbeitsagentur": len(ba)}, "quellen": ["ba"]}
     daten = {"seiten": 0, "ort_ka": "", "anzeigen": [], "anzahl": {}, "quellen": quellen}
+    if "st" in quellen:
+        st = stepstone(begriff, stadt, umkreis)
+        daten["anzeigen"] += st
+        daten["anzahl"]["StepStone"] = len(st)
     if "ka" in quellen:
         ka = kleinanzeigen(begriff, stadt, umkreis)
         daten.update(seiten=ka["seiten"], ort_ka=ka["ort_ka"])
@@ -259,13 +340,17 @@ def gespeicherte():
 def _vorbereiten_teil(anzeigen):
     fertig = []
     with ExitStack() as stack:
-        pg = None  # der Browser startet erst bei der ersten Kleinanzeigen-Anzeige; die Arbeitsagentur braucht ihn nicht
+        pg = None  # der Browser startet erst bei der ersten Kleinanzeigen-Anzeige; Arbeitsagentur und StepStone brauchen ihn nicht
         for a in anzeigen:
             fehler = ""
             try:
                 if a.get("quelle") == "Arbeitsagentur":
                     nr = base64.b64encode(a["refnr"].encode()).decode()
                     text = _ba_holen(f"v4/jobdetails/{nr}").get("stellenangebotsBeschreibung") or ""
+                elif a.get("quelle") == "StepStone":
+                    text = stepstone_text(a["link"])
+                    if not text:
+                        fehler = "Anzeigentext nicht gefunden (Seite umgebaut oder blockiert)"
                 else:
                     if pg is None:
                         pg = stack.enter_context(seite())
@@ -310,7 +395,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._eigene_seite()
             if url.path == "/suche":
                 b, s, u = q.get("begriff", ""), q.get("stadt", ""), q.get("umkreis", "")
-                quellen = [x for x in ("ka", "ba") if x in q.get("quellen", "ka").split(",")]
+                quellen = [x for x in ("ka", "ba", "st") if x in q.get("quellen", "ka").split(",")]
                 if not quellen:
                     raise ValueError("Bitte mindestens eine Quelle wählen.")
                 self.json(speichern(b, s, u, suchen(b, s, u, quellen)))

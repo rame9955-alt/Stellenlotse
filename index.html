@@ -73,6 +73,7 @@
     <div class="zeit">
       <label><input type="checkbox" name="quelle" value="ka" checked> Kleinanzeigen</label>
       <label><input type="checkbox" name="quelle" value="ba" checked> Arbeitsagentur</label>
+      <label><input type="checkbox" name="quelle" value="st" checked> StepStone</label>
     </div>
     <label>Arbeitszeit</label>
     <div class="zeit">
@@ -141,7 +142,7 @@ const zurueck = new Set();   // Firmen oder Gruppen, die der Nutzer wieder sehen
 const $ = id => document.getElementById(id);
 const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const norm = s => s.toLowerCase().replace(/[^a-zäöüß0-9]+/g, ' ').trim();
-const QUELLE = { ka: 'Kleinanzeigen', ba: 'Arbeitsagentur' };
+const QUELLE = { ka: 'Kleinanzeigen', ba: 'Arbeitsagentur', st: 'StepStone' };
 const adresseOK = s => /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(s);
 const fehlerText = e => '<span class="fehler">Fehler: ' + esc(String(e.message || e)) + '</span>';
 

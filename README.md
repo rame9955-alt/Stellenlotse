@@ -3,7 +3,7 @@
 Lebenslauf hochladen, Jobbörsen durchsuchen lassen, passende Stellen oben sehen, Bewerbungen als Gmail-Entwurf vorbereiten. Läuft lokal auf dem eigenen Rechner.
 
 ## Was es kann
-- Sucht in **Kleinanzeigen** und der **Jobbörse der Arbeitsagentur** (Umkreis, Vollzeit/Teilzeit, Homeoffice/Remote, bundesweit nur Remote).
+- Sucht in **Kleinanzeigen**, der **Jobbörse der Arbeitsagentur** und **StepStone** (Umkreis, Vollzeit/Teilzeit, Homeoffice/Remote; die bundesweite Remote-Suche läuft nur über die Arbeitsagentur). StepStone liefert je Suche höchstens 200 passende Anzeigen.
 - Blendet Zeitarbeitsfirmen und doppelte Anzeigen aus, sortiert nach Datum oder nach **Passung zum Lebenslauf**.
 - Liest den **Lebenslauf (PDF)** und schlägt Suchbegriffe vor. Grundlage sind eine Wortliste und die Berufsbezeichnungen aus den 144 Berufsfeldern der Arbeitsagentur. Optional kann ein lokales **Ollama** ergänzen.
 - Findet Bewerbungs-E-Mail-Adressen im Anzeigentext, schreibt ein Anschreiben nach Art der Stelle und legt es als **Gmail-Entwurf** an (Versand per Knopf nur nach Rückfrage).
