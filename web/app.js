@@ -246,22 +246,56 @@ function zeigen() {
 function profilZeigen(meldung) {
   $('cvInfo').textContent = meldung || (profil.berufe ? 'Erkannt, Klick auf einen Beruf setzt den Suchbegriff:' : '');
   $('cvFelder').textContent = (profil.felder || []).length ? 'Berufsfelder der Arbeitsagentur, die zum Lebenslauf passen: ' + profil.felder.join(' · ') : '';
-  $('cvBerufe').innerHTML = (profil.berufe || []).map(b => `<button class="cvb" data-b="${esc(b)}">${esc(b)} <span class="klein">${profil.treffer[b].length}</span></button>`).join(' ');
+  $('cvBerufe').innerHTML = (profil.berufe || []).map(b => `<button class="cvb" data-b="${esc(b)}">${esc(b)} <span class="klein">${profil.treffer[b][0] === 'KI' ? 'KI' : profil.treffer[b].length}</span></button>`).join(' ');
   $('cvBerufe').querySelectorAll('button').forEach(k => k.onclick = () => { $('begriff').value = k.dataset.b; });
 }
+let cvText = '';  // der Lebenslauftext, nur im Speicher dieser Seite (für die KI-Hilfe); wird nie gespeichert
 $('cv').onchange = async () => {
   const f = $('cv').files[0];
   if (!f) return;
   cvDatei = f;
   $('cvInfo').textContent = 'Lese Lebenslauf ...';
+  $('kiBox').hidden = true;
   try {
-    const p = await profilBauen(await pdfText(f));
-    if (!p.berufe.length) throw new Error('Im Lebenslauf wurde kein bekannter Beruf erkannt. Die Suchbegriffe kannst du weiter selbst eintippen.');
+    cvText = await pdfText(f);
+    const p = await profilBauen(cvText);
+    kiVorbereiten();
+    if (!p.berufe.length) { $('cvInfo').textContent = 'Im Lebenslauf wurde kein bekannter Beruf erkannt. Probiere die KI-Hilfe unten oder tippe den Suchbegriff selbst ein.'; return; }
     profil = p;
     speicher.schreiben('sl.profil', p);  // nur Berufe und Stichwörter, nicht der Text
     profilZeigen();
     if (alle.length) zeigen();
   } catch (e) { $('cvInfo').innerHTML = fehlerText(e); }
+};
+
+// ---------- KI-Hilfe (freiwillig, nur mit Einwilligung) ----------
+function kiVorbereiten() {
+  $('kiBox').hidden = false;
+  $('kiText').value = bereinigen(cvText, angaben.name || '');  // der Nutzer sieht und ändert, was gesendet wird
+  $('kiOk').checked = false;
+  $('kiInfo').textContent = '';
+  kiPruefen();
+}
+const kiPruefen = () => { $('kiKnopf').disabled = !$('kiOk').checked || $('kiText').value.trim().length < 100; };
+$('kiOk').oninput = $('kiText').oninput = kiPruefen;
+$('kiKnopf').onclick = async () => {
+  $('kiKnopf').disabled = true;
+  $('kiInfo').textContent = 'Die KI liest den Text ...';
+  try {
+    const d = await api('/api/ki', { text: $('kiText').value.trim() });
+    const p = profil.berufe ? profil : { berufe: [], woerter: [], treffer: {}, felder: [] };
+    const klein = new Set(d.berufe.map(b => b.toLowerCase()));
+    profil = {
+      ...p, berufe: [...d.berufe, ...p.berufe.filter(b => !klein.has(b.toLowerCase()))],
+      woerter: [...new Set([...p.woerter, ...d.woerter])].sort(),
+      treffer: { ...p.treffer, ...Object.fromEntries(d.berufe.filter(b => !p.treffer[b]).map(b => [b, ['KI']])) },
+    };
+    speicher.schreiben('sl.profil', profil);
+    profilZeigen('Die KI-Berufe stehen vorn (Markierung „KI“). Klick setzt den Suchbegriff:');
+    $('kiInfo').textContent = 'Fertig. Der Text wurde nicht gespeichert.';
+    if (alle.length) zeigen();
+  } catch (e) { $('kiInfo').innerHTML = fehlerText(e); }
+  kiPruefen();
 };
 if (profil.berufe) profilZeigen('Zuletzt erkannt (der Lebenslauf selbst wird nicht gespeichert, für die E-Mail-Datei bitte das PDF oben wieder auswählen). Klick auf einen Beruf setzt den Suchbegriff:');
 

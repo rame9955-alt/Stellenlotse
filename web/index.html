@@ -39,6 +39,11 @@
   .grau { background: #e8e8ed; color: #1d1d1f; padding: 8px 14px; border-radius: 10px; font-size: 14px; text-decoration: none; font-weight: 600; }
   .cvb { background: #e8e8ed; padding: 6px 12px; margin: 4px 4px 0 0; font-size: 14px; }
   details summary { font-weight: 600; cursor: pointer; }
+  .kibox { margin-top: 14px; border-top: 1px solid #e8e8ed; padding-top: 10px; }
+  .kibox textarea { height: 170px; font-size: 13px; line-height: 1.4; margin: 8px 0; }
+  .einv { display: flex; gap: 8px; align-items: flex-start; color: #1d1d1f; font-size: 14px; margin: 0 0 10px; }
+  .einv input { margin-top: 3px; }
+  .grau:disabled { opacity: .5; cursor: default; }
   footer { color: #6e6e73; font-size: 12px; text-align: center; margin: 24px 0 8px; }
 </style>
 </head>
@@ -59,6 +64,14 @@
     <div id="cvInfo" class="klein"></div>
     <div id="cvFelder" class="klein"></div>
     <div id="cvBerufe"></div>
+    <details id="kiBox" class="kibox" hidden>
+      <summary>KI-Hilfe (freiwillig)</summary>
+      <div class="klein">Die Wortliste findet nur Berufe, die sie kennt. Die KI kann auch andere vorschlagen. Dafür geht der Text unten an den KI-Anbieter <b>Groq in den USA</b>. Wir entfernen vorher Name, Anschrift, Telefon, E-Mail und Geburtsdaten, aber das ist eine automatische Suche, die nichts garantiert: <b>Prüfe den Text und lösche weg, was nicht raus soll</b> (Firmen und Schulen bleiben zum Beispiel drin). Wir speichern den Text nicht. Was Groq damit macht, regeln die Bedingungen von Groq.</div>
+      <textarea id="kiText" spellcheck="false"></textarea>
+      <label class="einv"><input type="checkbox" id="kiOk"> Ich willige ein, dass genau dieser Text an Groq (USA) gesendet wird.</label>
+      <button class="grau" id="kiKnopf" disabled>Mit KI verbessern</button>
+      <div id="kiInfo" class="klein"></div>
+    </details>
   </div>
 
   <details class="karte" id="angaben">

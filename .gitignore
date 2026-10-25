@@ -13,3 +13,6 @@ Ergebnisse/
 __pycache__/
 .ruff_cache/
 *.tmp
+
+# Video (brag-slim)
+brag-output/

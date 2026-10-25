@@ -25,6 +25,8 @@ Dann `START.bat` doppelklicken. Das Programm öffnet `http://localhost:4910`.
 ## Web-Version (Ordner `web`)
 Läuft ohne Konto und ohne eigenen Server, gedacht für Vercel. Der Lebenslauf wird nur im Browser gelesen (pdf.js), nichts wird gespeichert; „Beworben“ und „Aussortiert“ liegen im lokalen Speicher des Browsers. Die Funktionen unter `web/api` holen nur Anzeigen von der Arbeitsagentur und StepStone (Kleinanzeigen geht online nicht, es braucht einen Browser). Statt Gmail gibt es eine E-Mail-Datei (`.eml`) mit Lebenslauf im Anhang, die das Mailprogramm als Entwurf öffnet.
 
+KI-Hilfe (freiwillig, aus, bis ein Schlüssel gesetzt ist): `web/api/ki.py` schickt den vom Browser bereinigten Lebenslauftext (ohne Name, Anschrift, Telefon, E-Mail, Geburtsdaten; der Nutzer sieht und ändert ihn vorher) nur nach ausdrücklicher Einwilligung an Groq. Der Schlüssel steht als Umgebungsvariable `GROQ_API_KEY` bei Vercel, optional `KI_MODELL`. Die Bereinigung ist eine automatische Suche und garantiert nichts.
+
 Lokal testen: `python web/dev.py` (öffnet `http://localhost:4920`). Bei Vercel einstellen: `vercel deploy --prod --cwd web`.
 
 ## Stand
