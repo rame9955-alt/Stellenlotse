@@ -22,7 +22,7 @@ ST_KOPF = {  # wie ein Browser; mit weniger Headern antwortet StepStone bei Anze
     "Referer": ST_BASIS + "/", "Upgrade-Insecure-Requests": "1", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "same-origin",
 }
 ST_ANZEIGE = re.compile(r"^https://www\.stepstone\.de/stellenangebote--[\w%.\-]+\.html$")  # nur echte Anzeigenlinks: sonst wäre die Funktion ein offener Abruf-Dienst
-BA_REFNR = re.compile(r"^[\w/-]{5,50}$")  # Referenznummern können einen Schrägstrich enthalten ("13319-893134/1_622342LS-S")
+BA_REFNR = re.compile(r"^(?!.*\.\.)[\w./-]{5,50}$")  # Referenznummern können "/" und "." enthalten ("13319-893134/1_622342LS-S", "13740-k20009.1334-S")
 
 
 # ---------- Arbeitsagentur ----------
