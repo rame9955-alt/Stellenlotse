@@ -22,5 +22,10 @@ Eigene Angaben: `einstellungen.beispiel.json` kopieren, in `einstellungen.json` 
 
 Dann `START.bat` doppelklicken. Das Programm öffnet `http://localhost:4910`.
 
+## Web-Version (Ordner `web`)
+Läuft ohne Konto und ohne eigenen Server, gedacht für Vercel. Der Lebenslauf wird nur im Browser gelesen (pdf.js), nichts wird gespeichert; „Beworben“ und „Aussortiert“ liegen im lokalen Speicher des Browsers. Die Funktionen unter `web/api` holen nur Anzeigen von der Arbeitsagentur und StepStone (Kleinanzeigen geht online nicht, es braucht einen Browser). Statt Gmail gibt es eine E-Mail-Datei (`.eml`) mit Lebenslauf im Anhang, die das Mailprogramm als Entwurf öffnet.
+
+Lokal testen: `python web/dev.py` (öffnet `http://localhost:4920`). Bei Vercel einstellen: `vercel deploy --prod --cwd web`.
+
 ## Stand
 Frühe Version, nur lokal gedacht. Die Jobbörsen haben eigene Nutzungsbedingungen, die jede Person für sich prüfen muss. Keine Gewähr.

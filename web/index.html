@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stellenlotse</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #f5f5f7; color: #1d1d1f; margin: 0; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .unter { color: #6e6e73; font-size: 14px; margin-bottom: 16px; }
+  .karte { background: #fff; border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  label { display: block; font-size: 13px; color: #6e6e73; margin: 10px 0 4px; }
+  input[type=text], input[type=number], textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 10px 12px; border: 1px solid #d2d2d7; border-radius: 10px; }
+  input[type=number] { width: 90px; }
+  textarea { height: 90px; }
+  select { width: 100%; font: inherit; padding: 10px 8px; border: 1px solid #d2d2d7; border-radius: 10px; background: #fff; }
+  .neu { background: #34c759; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 6px; margin-right: 6px; vertical-align: 2px; }
+  .such { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid #e8e8ed; font-size: 14px; cursor: pointer; color: #0071e3; }
+  .such span:last-child { color: #6e6e73; flex-shrink: 0; }
+  .zeile { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; }
+  .zeile > div { flex: 1; min-width: 140px; }
+  .zeit label { display: inline; margin-right: 12px; color: #1d1d1f; font-size: 15px; }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 10px; }
+  #info { font-weight: 600; margin-bottom: 8px; }
+  .job { padding: 12px 0; border-top: 1px solid #e8e8ed; }
+  .job a { color: #0071e3; font-weight: 600; text-decoration: none; }
+  .klein { font-size: 13px; color: #6e6e73; margin-top: 3px; }
+  .weg { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid #e8e8ed; font-size: 14px; }
+  .weg button { background: #e8e8ed; padding: 4px 10px; font-size: 13px; flex-shrink: 0; }
+  .fehler { color: #c00; }
+  .blau { background: #0071e3; color: #fff; padding: 12px 20px; width: 100%; margin-top: 16px; font-weight: 600; }
+  .blau:disabled { background: #a1a1a6; }
+  .bew { padding: 14px 0; border-top: 1px solid #e8e8ed; }
+  .bew textarea { height: 180px; font-size: 13px; line-height: 1.4; margin-top: 6px; }
+  .bew input[type=text] { margin-top: 6px; }
+  .bew input.leer { border-color: #c00; background: #fff5f5; }
+  .knoepfe { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .grau { background: #e8e8ed; color: #1d1d1f; padding: 8px 14px; border-radius: 10px; font-size: 14px; text-decoration: none; font-weight: 600; }
+  .cvb { background: #e8e8ed; padding: 6px 12px; margin: 4px 4px 0 0; font-size: 14px; }
+  details summary { font-weight: 600; cursor: pointer; }
+  footer { color: #6e6e73; font-size: 12px; text-align: center; margin: 24px 0 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Stellenlotse</h1>
+  <div class="unter">Lebenslauf hochladen, passende Stellen finden, Bewerbung vorbereiten. Ohne Konto: Dein Lebenslauf bleibt in deinem Browser, wir speichern nichts.</div>
+
+  <div class="karte" id="gespeichert" hidden>
+    <div style="font-weight:600">Letzte Suchen</div>
+    <div id="liste3"></div>
+  </div>
+
+  <div class="karte">
+    <div style="font-weight:600">Lebenslauf</div>
+    <div class="klein">PDF auswählen: Er wird nur in deinem Browser gelesen und nirgends hochgeladen. Das Programm schlägt Suchbegriffe vor und sortiert die Treffer nach Passung.</div>
+    <input id="cv" type="file" accept="application/pdf,.pdf">
+    <div id="cvInfo" class="klein"></div>
+    <div id="cvFelder" class="klein"></div>
+    <div id="cvBerufe"></div>
+  </div>
+
+  <details class="karte" id="angaben">
+    <summary>Meine Angaben für das Anschreiben</summary>
+    <div class="klein">Bleiben nur in diesem Browser. Du brauchst sie für Anschreiben und E-Mail-Datei.</div>
+    <div class="zeile">
+      <div><label for="an_name">Name</label><input id="an_name" type="text" autocomplete="name"></div>
+      <div><label for="an_email">E-Mail (Absender)</label><input id="an_email" type="text" autocomplete="email"></div>
+    </div>
+    <div class="zeile">
+      <div><label for="an_anschrift">Anschrift</label><input id="an_anschrift" type="text" autocomplete="street-address"></div>
+      <div><label for="an_telefon">Telefon</label><input id="an_telefon" type="text" autocomplete="tel"></div>
+    </div>
+    <label for="ab_IT">Absatz für IT-Stellen</label><textarea id="ab_IT"></textarea>
+    <label for="ab_Disposition">Absatz für Disposition und Verkehr</label><textarea id="ab_Disposition"></textarea>
+    <label for="ab_Logistik">Absatz für Logistik</label><textarea id="ab_Logistik"></textarea>
+    <label for="ab_Personal">Absatz für Personal</label><textarea id="ab_Personal"></textarea>
+    <label for="ab_Büro">Absatz für Büro und Sachbearbeitung (gilt auch, wenn für eine Art nichts steht)</label><textarea id="ab_Büro"></textarea>
+    <label for="an_schluss">Schlussabsatz (kommt in jedes Anschreiben, z. B. Ausbildung, Sprachen)</label><textarea id="an_schluss"></textarea>
+  </details>
+
+  <div class="karte">
+    <div class="zeile">
+      <div><label for="begriff">Suchbegriff</label><input id="begriff" type="text" value="Sachbearbeiter"></div>
+      <div><label for="stadt">PLZ</label><input id="stadt" type="text" inputmode="numeric" maxlength="5" placeholder="z. B. 10115"></div>
+      <div style="flex:0 0 120px; min-width:120px"><label for="umkreis">Umkreis</label>
+        <select id="umkreis">
+          <option value="">egal</option><option value="5">5 km</option><option value="10" selected>10 km</option>
+          <option value="20">20 km</option><option value="30">30 km</option><option value="50">50 km</option>
+          <option value="100">100 km</option>
+          <option value="remote">bundesweit (nur Remote)</option>
+        </select></div>
+    </div>
+    <label>Quelle</label>
+    <div class="zeit">
+      <label><input type="checkbox" name="quelle" value="ba" checked> Arbeitsagentur</label>
+      <label><input type="checkbox" name="quelle" value="st" checked> StepStone</label>
+    </div>
+    <label>Arbeitszeit</label>
+    <div class="zeit">
+      <label><input type="radio" name="zeit" value="egal" checked> egal</label>
+      <label><input type="radio" name="zeit" value="voll"> Vollzeit</label>
+      <label><input type="radio" name="zeit" value="teil"> Teilzeit</label>
+      <label><input type="checkbox" id="ohneZA"> keine Zeitarbeit (nur Arbeitsagentur)</label>
+    </div>
+    <label for="homeoffice">Homeoffice</label>
+    <select id="homeoffice">
+      <option value="egal">egal</option>
+      <option value="moeglich">Homeoffice möglich oder Remote</option>
+      <option value="remote">nur 100 % Remote</option>
+    </select>
+    <label for="sortierung">Sortierung</label>
+    <select id="sortierung">
+      <option value="neu">NEU zuerst</option>
+      <option value="neueste">Datum: neueste zuerst</option>
+      <option value="aelteste">Datum: älteste zuerst</option>
+      <option value="passung">Passung zum Lebenslauf</option>
+    </select>
+    <div class="zeile">
+      <div><label for="abFirma">Firma ausblenden ab so vielen Anzeigen</label>
+        <input id="abFirma" type="number" min="2" value="3"></div>
+      <div><label for="abGleich">Gleiche Anzeige ausblenden ab so vielen Kopien</label>
+        <input id="abGleich" type="number" min="2" value="3"></div>
+    </div>
+    <button id="los" class="blau">Suche starten</button>
+  </div>
+
+  <div class="karte" id="ergebnis" hidden>
+    <div id="info"></div>
+    <div id="liste"></div>
+    <button id="vorb" class="blau">Bewerbungen vorbereiten</button>
+  </div>
+
+  <div class="karte" id="bewerben" hidden>
+    <div style="font-weight:600">Bewerbungen</div>
+    <div class="klein" id="angabenHinweis" hidden><span class="fehler">Bitte oben unter „Meine Angaben“ Name und E-Mail eintragen, sonst fehlen sie im Anschreiben.</span> Danach die Bewerbungen noch einmal vorbereiten.</div>
+    <div class="klein">Pro Job: Text prüfen, dann „E-Mail-Datei laden“ (Entwurf mit Lebenslauf im Anhang für dein Mailprogramm) oder „Anschreiben kopieren“ und über „Anzeige öffnen“ bewerben. Gesendet wird von hier aus nichts.</div>
+    <div id="liste4"></div>
+  </div>
+
+  <div class="karte" id="ausgeblendet" hidden>
+    <div style="font-weight:600">Ausgeblendet</div>
+    <div id="liste2"></div>
+  </div>
+
+  <div class="karte" id="beworbenKarte" hidden>
+    <div id="bewKopf" style="font-weight:600"></div>
+    <div id="liste6"></div>
+  </div>
+
+  <div class="karte" id="aussortiert" hidden>
+    <div id="ausKopf" style="font-weight:600"></div>
+    <div id="liste5"></div>
+  </div>
+
+  <footer>Stellenlotse · Quellen: Jobbörse der Bundesagentur für Arbeit und StepStone · Keine Gewähr für Vollständigkeit</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="profil.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

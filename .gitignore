@@ -6,6 +6,9 @@ beworben.json
 aussortiert.json
 Ergebnisse/
 
+# Vercel: Verknüpfung mit dem eigenen Konto
+.vercel/
+
 # Erzeugtes
 __pycache__/
 .ruff_cache/
