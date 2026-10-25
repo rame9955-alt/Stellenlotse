@@ -31,6 +31,15 @@ def aufrufen(text, schluessel, json_modus):
         return json.load(r)["choices"][0]["message"]["content"]
 
 
+def json_aus(roh):
+    """Das JSON in der Antwort, auch wenn Text oder Code-Zeichen drumherum stehen; sonst None."""
+    a, b = roh.find("{"), roh.rfind("}")
+    try:
+        return json.loads(roh[a:b + 1]) if 0 <= a < b else None
+    except ValueError:
+        return None
+
+
 def liste(d, schluessel, grenze):
     v = d.get(schluessel) if isinstance(d, dict) else None
     if not isinstance(v, list):  # ein Text würde sonst Buchstabe für Buchstabe zu "Berufen"
@@ -52,17 +61,20 @@ class handler(BaseHTTPRequestHandler):
             text = str(json.loads(self.rfile.read(laenge)).get("text", "")).strip()
             if not 100 <= len(text) <= MAX_ZEICHEN:
                 return antwort(self, 400, {"fehler": f"Der Text muss zwischen 100 und {MAX_ZEICHEN} Zeichen lang sein."})
-            try:
-                roh = aufrufen(text, schluessel, True)
-            except urllib.error.HTTPError as e:
-                if e.code != 400:
-                    raise
-                roh = aufrufen(text, schluessel, False)  # manches Modell kennt den JSON-Modus nicht
-            roh = roh.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-            d = json.loads(roh)
+            d, roh = None, ""
+            for json_modus in (True, False):  # zweiter Versuch ohne JSON-Modus: manches Modell kennt ihn nicht oder liefert damit nichts
+                try:
+                    roh = aufrufen(text, schluessel, json_modus) or ""
+                except urllib.error.HTTPError as e:
+                    if e.code != 400 or not json_modus:
+                        raise
+                    continue
+                d = json_aus(roh)
+                if liste(d, "berufe", 8):
+                    break
             berufe = liste(d, "berufe", 8)
-            if not berufe:
-                return antwort(self, 502, {"fehler": "Die KI hat keine Berufe geliefert. Bitte noch einmal versuchen."})
+            if not berufe:  # Ausschnitt der Antwort der KI (nicht dein Text) hilft bei der Fehlersuche
+                return antwort(self, 502, {"fehler": f"Die KI hat keine lesbare Antwort geliefert. Bitte noch einmal versuchen. (Antwort: {roh.strip()[:120] or 'leer'})"})
             return antwort(self, 200, {"berufe": berufe, "woerter": [w.lower() for w in liste(d, "woerter", 25)]})
         except urllib.error.HTTPError as e:
             meldung = {401: "Der KI-Schlüssel ist ungültig.", 404: "Das KI-Modell gibt es nicht (KI_MODELL bei Vercel prüfen).",
