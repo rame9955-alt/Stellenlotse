@@ -36,6 +36,14 @@
   .bew .kopf { display: flex; gap: 10px; align-items: baseline; }
   .knoepfe { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
   .grau { background: #e8e8ed; color: #1d1d1f; padding: 8px 14px; border-radius: 10px; font-size: 14px; text-decoration: none; font-weight: 600; }
+  details summary { font-weight: 600; cursor: pointer; }
+  .kibox { margin-top: 14px; border-top: 1px solid #e8e8ed; padding-top: 10px; }
+  .kibox textarea, #angaben textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 10px 12px; border: 1px solid #d2d2d7; border-radius: 10px; }
+  .kibox textarea { height: 170px; font-size: 13px; line-height: 1.4; margin: 8px 0; }
+  #angaben textarea { height: 90px; }
+  .einv { display: flex; gap: 8px; align-items: flex-start; color: #1d1d1f; font-size: 14px; margin: 0 0 10px; }
+  .einv input { margin-top: 3px; }
+  .grau:disabled { opacity: .5; cursor: default; }
 </style>
 </head>
 <body>
@@ -55,7 +63,36 @@
     <div id="cvInfo" class="klein"></div>
     <div id="cvFelder" class="klein"></div>
     <div id="cvBerufe"></div>
+    <details id="kiBox" class="kibox" hidden>
+      <summary>KI-Hilfe mit Groq (freiwillig)</summary>
+      <div class="klein">Die Wortliste findet nur Berufe, die sie kennt. Die KI kann auch andere vorschlagen. Dafür geht der Text unten an den KI-Anbieter <b>Groq in den USA</b>. Vorher werden Name, Anschrift, Telefon, E-Mail und Geburtsdaten entfernt, aber das ist eine automatische Suche, die nichts garantiert: <b>Prüfe den Text und lösche weg, was nicht raus soll</b> (Firmen und Schulen bleiben zum Beispiel drin). Das Programm speichert den Text nicht. Was Groq damit macht, regeln die Bedingungen von Groq. Den Schlüssel trägst du in die Datei <b>groq_schluessel.txt</b> im Programmordner ein.</div>
+      <textarea id="kiText" spellcheck="false"></textarea>
+      <label class="einv"><input type="checkbox" id="kiOk"> Ich willige ein, dass genau dieser Text an Groq (USA) gesendet wird.</label>
+      <button class="grau" id="kiKnopf" disabled>Mit KI verbessern</button>
+      <div id="kiInfo" class="klein"></div>
+    </details>
   </div>
+
+  <details class="karte" id="angaben">
+    <summary>Meine Angaben für das Anschreiben</summary>
+    <div class="klein">Liegen in der Datei einstellungen.json auf diesem Rechner. Neue Anschreiben nutzen sie sofort, schon vorbereitete bleiben, wie sie sind.</div>
+    <div class="zeile">
+      <div><label for="an_name">Name</label><input id="an_name" type="text" autocomplete="name"></div>
+      <div><label for="an_gmail">Gmail-Adresse (Absender)</label><input id="an_gmail" type="text" autocomplete="email"></div>
+    </div>
+    <div class="zeile">
+      <div><label for="an_anschrift">Anschrift</label><input id="an_anschrift" type="text" autocomplete="street-address"></div>
+      <div><label for="an_telefon">Telefon</label><input id="an_telefon" type="text" autocomplete="tel"></div>
+    </div>
+    <label for="an_lebenslauf_pdf">Lebenslauf-PDF für den Anhang (Pfad auf diesem Rechner)</label><input id="an_lebenslauf_pdf" type="text">
+    <label for="ab_IT">Absatz für IT-Stellen</label><textarea id="ab_IT"></textarea>
+    <label for="ab_Disposition">Absatz für Disposition und Verkehr</label><textarea id="ab_Disposition"></textarea>
+    <label for="ab_Logistik">Absatz für Logistik</label><textarea id="ab_Logistik"></textarea>
+    <label for="ab_Personal">Absatz für Personal</label><textarea id="ab_Personal"></textarea>
+    <label for="ab_Büro">Absatz für Büro und Sachbearbeitung (gilt auch, wenn für eine Art nichts steht)</label><textarea id="ab_Büro"></textarea>
+    <label for="an_schlussabsatz">Schlussabsatz (kommt in jedes Anschreiben, z. B. Ausbildung, Sprachen)</label><textarea id="an_schlussabsatz"></textarea>
+    <div id="angabenInfo" class="klein"></div>
+  </details>
 
   <div class="karte">
     <div class="zeile">
@@ -411,6 +448,7 @@ $('cv').onchange = async () => {
     const b64 = await new Promise((ok, nein) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = nein; r.readAsDataURL(f); });
     profil = await api('/lebenslauf', { pdf: b64 });
     profilZeigen();
+    kiVorbereiten();
     if (alle.length) zeigen();
   } catch (e) { $('cvInfo').innerHTML = fehlerText(e); }
 };
@@ -424,7 +462,47 @@ $('cvKi').onclick = async () => {
   } catch (e) { $('cvInfo').innerHTML = fehlerText(e); }
   $('cvKi').disabled = false;
 };
-api('/profil').then(p => { profil = p; if (p.berufe) profilZeigen('Zuletzt hochgeladener Lebenslauf. Klick auf einen Beruf setzt den Suchbegriff:'); }).catch(() => {});
+api('/profil').then(p => { profil = p; if (p.berufe) { profilZeigen('Zuletzt hochgeladener Lebenslauf. Klick auf einen Beruf setzt den Suchbegriff:'); kiVorbereiten(); } }).catch(() => {});
+
+// ---------- KI-Hilfe mit Groq (freiwillig, nur mit Einwilligung; der Nutzer sieht und ändert den Text vor dem Senden) ----------
+async function kiVorbereiten() {
+  try {
+    const d = await api('/ki-vorschau');
+    $('kiBox').hidden = !d.text;
+    if (d.text) { $('kiText').value = d.text; $('kiOk').checked = false; $('kiInfo').textContent = ''; kiPruefen(); }
+  } catch { $('kiBox').hidden = true; }
+}
+const kiPruefen = () => { $('kiKnopf').disabled = !$('kiOk').checked || $('kiText').value.trim().length < 100; };
+$('kiOk').oninput = $('kiText').oninput = kiPruefen;
+$('kiKnopf').onclick = async () => {
+  $('kiKnopf').disabled = true;
+  $('kiInfo').textContent = 'Die KI liest den Text ...';
+  try {
+    profil = await api('/ki-groq', { text: $('kiText').value.trim() });
+    profilZeigen('Die KI-Berufe stehen vorn (Markierung „KI“). Klick setzt den Suchbegriff:');
+    $('kiInfo').textContent = 'Fertig. Der Text wurde nicht gespeichert.';
+    if (alle.length) zeigen();
+  } catch (e) { $('kiInfo').innerHTML = fehlerText(e); }
+  kiPruefen();
+};
+
+// ---------- Meine Angaben: werden in einstellungen.json gespeichert ----------
+const ANGABEN = ['name', 'gmail', 'anschrift', 'telefon', 'lebenslauf_pdf', 'schlussabsatz'], ABSATZ_ARTEN = ['IT', 'Disposition', 'Logistik', 'Personal', 'Büro'];
+api('/einstellungen').then(e => {
+  ANGABEN.forEach(f => $('an_' + f).value = e[f] || '');
+  ABSATZ_ARTEN.forEach(a => $('ab_' + a).value = (e.absaetze || {})[a] || '');
+}).catch(() => {});
+let angabenZeit;
+document.querySelectorAll('#angaben input, #angaben textarea').forEach(el => el.addEventListener('input', () => {
+  clearTimeout(angabenZeit);
+  $('angabenInfo').textContent = '';
+  angabenZeit = setTimeout(async () => {  // erst speichern, wenn kurz nichts mehr getippt wird
+    const neu = Object.fromEntries(ANGABEN.map(f => [f, $('an_' + f).value]));
+    neu.absaetze = Object.fromEntries(ABSATZ_ARTEN.map(a => [a, $('ab_' + a).value]));
+    try { await api('/einstellungen', neu); $('angabenInfo').textContent = 'Gespeichert ✓'; }
+    catch (e) { $('angabenInfo').innerHTML = fehlerText(e); }
+  }, 700);
+}));
 
 function passtHome(a) {
   const w = $('homeoffice').value;

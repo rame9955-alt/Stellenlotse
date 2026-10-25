@@ -391,7 +391,7 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         try:
-            if url.path in ("/suche", "/gespeichert", "/laden", "/entwuerfe", "/aussortiert", "/beworben", "/profil"):
+            if url.path in ("/suche", "/gespeichert", "/laden", "/entwuerfe", "/aussortiert", "/beworben", "/profil", "/einstellungen", "/ki-vorschau"):
                 self._eigene_seite()
             if url.path == "/suche":
                 b, s, u = q.get("begriff", ""), q.get("stadt", ""), q.get("umkreis", "")
@@ -412,6 +412,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(_liste(BEWORBEN))
             elif url.path == "/profil":
                 self.json(lebenslauf.gespeichert())
+            elif url.path == "/einstellungen":
+                self.json(bewerbung.einstellungen_lesen())
+            elif url.path == "/ki-vorschau":
+                self.json({"text": lebenslauf.ki_vorschau(bewerbung.einstellungen_lesen().get("name", ""))})
             else:
                 self.antwort(200, SEITE, "text/html; charset=utf-8")
         except PermissionError as e:
@@ -438,6 +442,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(lebenslauf.hochladen(daten))
             elif self.path == "/lebenslauf-ki":
                 self.json(lebenslauf.mit_ki())
+            elif self.path == "/ki-groq":
+                self.json(lebenslauf.mit_groq(daten.get("text", "")))
+            elif self.path == "/einstellungen":
+                self.json(bewerbung.einstellungen_speichern(daten))
             elif self.path == "/aussortieren":
                 self.json(aussortieren(daten))
             elif self.path == "/zurueckholen":

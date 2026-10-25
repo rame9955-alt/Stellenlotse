@@ -5,6 +5,7 @@ import json
 import os
 import re
 import threading
+import urllib.error
 import urllib.request
 from functools import lru_cache
 from pathlib import Path
@@ -143,6 +144,11 @@ def mit_ki():
     ki = liste("berufe")[:8]
     if not ki:
         raise RuntimeError("Die KI hat keine Berufe geliefert. Bitte nochmal versuchen.")
+    return _ki_anwenden(text, ki, liste("woerter"))
+
+
+def _ki_anwenden(text, ki, woerter):
+    """Setzt die KI-Berufe vorn ins gespeicherte Profil, falls inzwischen kein anderer Lebenslauf hochgeladen wurde."""
     with _SPERRE:
         p = _lesen()  # frisch lesen: der Nutzer kann während der Wartezeit einen anderen Lebenslauf hochgeladen haben
         if p.get("text") != text:
@@ -151,9 +157,126 @@ def mit_ki():
         p["berufe"] = ki + [b for b in p["berufe"] if b.lower() not in alt]
         for b in ki:
             p["treffer"].setdefault(b, ["KI"])
-        p["woerter"] = sorted({*p["woerter"], *(w.lower() for w in liste("woerter"))})
+        p["woerter"] = sorted({*p["woerter"], *(w.lower() for w in woerter)})
         _speichern(p)
     return {k: v for k, v in p.items() if k != "text"}
+
+
+# ---------- KI-Hilfe mit Groq (wie in der Web-Version: bereinigter Text, Vorschau, ausdrückliche Einwilligung) ----------
+GROQ_DATEI = Path(__file__).parent / "groq_schluessel.txt"  # nur auf diesem Rechner, nicht im Repository
+GROQ_URL = os.environ.get("KI_URL", "https://api.groq.com/openai/v1/chat/completions")
+GROQ_MODELL = os.environ.get("KI_MODELL", "openai/gpt-oss-20b")
+GROQ_SYSTEM = ("Du liest den Berufs- und Fähigkeitenteil eines deutschen Lebenslaufs. Antworte nur mit JSON der Form "
+               '{"berufe": [...], "woerter": [...]}. "berufe": höchstens 8 Berufsbezeichnungen auf Deutsch, zu denen der Lebenslauf passt '
+               '(als Suchbegriff für eine Jobbörse, z. B. "IT-Support", "Disponent"), die besten zuerst, auch Einstiegsberufe. '
+               '"woerter": höchstens 25 kleingeschriebene Stichwörter aus dem Lebenslauf (Programme, Fähigkeiten, Tätigkeiten), nichts erfinden.')
+
+KOPF = re.compile(r"^(persönliche\s+daten|personalien|kontakt(daten)?)\s*:?$", re.I)
+NAECHSTER = re.compile(r"^(profil|über\s+mich|kurzprofil|weiterbildung|praxiserfahrung|berufserfahrung|beruflicher\s+werdegang|werdegang|bildungsweg|ausbildung|"
+                       r"kenntnisse|fähigkeiten|kompetenzen|sprachen|sonstiges|zusatzqualifikationen|hobbys|interessen)\b", re.I)
+KONTAKT = [re.compile(m, re.I) for m in [
+    r"@", r"(\+|\b00)\s?\d[\d\s/().-]{6,}", r"\b0\d{2,5}[\s/-]\d{4,}", r"\b\d{5}\s+[^\W\d_]{3,}", r"https?://|www\.|linkedin|xing\.com",
+    r"(straße|strasse|str\.|weg|allee|platz|gasse|ring|damm|ufer)\s*\d+\s?[a-z]?\b",
+    r"geburts|geboren|anschrift|adresse|telefon|\bmobil\b|handy|familienstand|staatsangeh|nationalit|e-?mail"]]
+
+
+def _namen(text, bekannt=""):
+    namen = set(bekannt.split())
+    z = [s.strip() for s in text.split("\n")]
+    for i, s in enumerate(z):
+        if re.fullmatch(r"name\s*:?", s, re.I) and i + 1 < len(z):
+            namen.update(z[i + 1].split())  # "Name" / "Max Muster"
+        if "@" in s and "|" in s:
+            namen.update(s.split("|")[0].split())  # Kopfzeile "Max Muster | Mail | Telefon"
+    return [n for n in (x.strip(",;:") for x in namen) if len(n) >= 3 and not n.isdigit()]
+
+
+def bereinigen(text, bekannter_name=""):
+    """Der Lebenslauftext ohne Kontaktblock, Name, Anschrift, Telefon, E-Mail und Geburtsdaten (automatische Suche, garantiert nichts: der Nutzer prüft die Vorschau)."""
+    namen = _namen(text, bekannter_name)
+    ueberspringen, zeilen = False, []
+    for s in (x.strip() for x in text.split("\n")):
+        if not s:
+            continue
+        if KOPF.match(s):  # ganzer Block "Persönliche Daten"
+            ueberspringen = True
+            continue
+        if ueberspringen and NAECHSTER.match(s):
+            ueberspringen = False
+        if not ueberspringen and not any(m.search(s) for m in KONTAKT):
+            zeilen.append(s)
+    t = "\n".join(zeilen)
+    for n in namen:
+        t = re.sub(rf"(?<!\w){re.escape(n)}(?!\w)", "", t, flags=re.I)
+    t = re.sub(r"[ \t]+\n", "\n", t)
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return re.sub(r"(?m)^\s*[|,;-]+\s*$", "", t).strip()
+
+
+def ki_vorschau(bekannter_name=""):
+    """Der Text, der an Groq gehen würde (leer, wenn noch kein Lebenslauf hochgeladen ist)."""
+    text = _lesen().get("text", "")
+    return bereinigen(text, bekannter_name) if text else ""
+
+
+def _json_aus(roh):
+    a, b = roh.find("{"), roh.rfind("}")
+    try:
+        return json.loads(roh[a:b + 1]) if 0 <= a < b else None
+    except ValueError:
+        return None
+
+
+def _liste(d, schluessel, grenze):
+    v = d.get(schluessel) if isinstance(d, dict) else None
+    if not isinstance(v, list):  # ein Text würde sonst Buchstabe für Buchstabe zu "Berufen"
+        return []
+    return [s for s in (str(x).strip() for x in v) if 2 <= len(s) <= 60 and "\n" not in s][:grenze]
+
+
+def _groq(text, schluessel, json_modus):
+    nutzlast = {"model": GROQ_MODELL, "temperature": 0.2, "max_tokens": 1500,
+                "messages": [{"role": "system", "content": GROQ_SYSTEM}, {"role": "user", "content": text}]}
+    if json_modus:
+        nutzlast["response_format"] = {"type": "json_object"}
+    anfrage = urllib.request.Request(GROQ_URL, data=json.dumps(nutzlast).encode(), method="POST", headers={
+        "Authorization": f"Bearer {schluessel}", "Content-Type": "application/json", "User-Agent": "Kleinanzeigenscrapper"})
+    with urllib.request.urlopen(anfrage, timeout=40) as r:
+        return json.load(r)["choices"][0]["message"]["content"] or ""
+
+
+def mit_groq(gesendet):
+    """Schickt den (vom Nutzer geprüften) Text an Groq und setzt die Berufe der Antwort ins Profil. Der Schlüssel steht in groq_schluessel.txt."""
+    original = _lesen().get("text")
+    if not original:
+        raise ValueError("Bitte zuerst einen Lebenslauf hochladen.")
+    gesendet = str(gesendet).strip()
+    if not 100 <= len(gesendet) <= 8000:
+        raise ValueError("Der Text muss zwischen 100 und 8000 Zeichen lang sein.")
+    schluessel = os.environ.get("GROQ_API_KEY") or (GROQ_DATEI.read_text("utf-8").strip() if GROQ_DATEI.exists() else "")
+    if not schluessel:
+        raise RuntimeError("Der Groq-Schlüssel fehlt: In die Datei groq_schluessel.txt im Programmordner eintragen.")
+    d, roh = None, ""
+    try:
+        for json_modus in (True, False):  # zweiter Versuch ohne JSON-Modus: manches Modell kennt ihn nicht oder liefert damit nichts
+            try:
+                roh = _groq(gesendet, schluessel, json_modus)
+            except urllib.error.HTTPError as e:
+                if e.code != 400 or not json_modus:
+                    raise
+                continue
+            d = _json_aus(roh)
+            if _liste(d, "berufe", 8):
+                break
+    except urllib.error.HTTPError as e:
+        raise RuntimeError({401: "Der Groq-Schlüssel ist ungültig.", 404: "Das KI-Modell gibt es nicht (Umgebungsvariable KI_MODELL prüfen).",
+                            429: "Groq ist gerade ausgelastet (Gratis-Grenze). Bitte später noch einmal versuchen."}.get(e.code, f"Groq antwortet mit Fehler {e.code}."))
+    except OSError as e:
+        raise RuntimeError(f"Groq antwortet nicht ({e}).")
+    berufe = _liste(d, "berufe", 8)
+    if not berufe:
+        raise RuntimeError(f"Die KI hat keine lesbare Antwort geliefert. Bitte noch einmal versuchen. (Antwort: {roh.strip()[:120] or 'leer'})")
+    return _ki_anwenden(original, berufe, _liste(d, "woerter", 25))
 
 
 def _lesen():

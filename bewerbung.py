@@ -78,6 +78,32 @@ def einstellungen():
     return json.loads(EINSTELLUNGEN.read_text("utf-8"))
 
 
+ARTEN_NAMEN = ("IT", "Disposition", "Logistik", "Personal", "Büro")
+EINST_FELDER = ("name", "anschrift", "telefon", "gmail", "lebenslauf_pdf", "schlussabsatz")
+
+
+def einstellungen_lesen():
+    """Die Angaben für die Seite; leer, wenn es die Datei noch nicht gibt."""
+    return json.loads(EINSTELLUNGEN.read_text("utf-8")) if EINSTELLUNGEN.exists() else {}
+
+
+def einstellungen_speichern(neu):
+    """Übernimmt Änderungen aus der Seite (nur bekannte Felder) und schreibt die Datei atomar."""
+    with _SPERRE:
+        e = einstellungen_lesen()
+        for k in EINST_FELDER:
+            if k in neu:
+                e[k] = str(neu[k]).strip()
+        if "absaetze" in neu:
+            e["absaetze"] = {a: str(t).strip() for a, t in neu["absaetze"].items() if a in ARTEN_NAMEN and str(t).strip()}
+        if e.get("gmail") and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", e["gmail"], re.I):
+            raise ValueError("Die E-Mail-Adresse sieht nicht richtig aus.")
+        hilfsdatei = EINSTELLUNGEN.with_suffix(".tmp")
+        hilfsdatei.write_text(json.dumps(e, ensure_ascii=False, indent=2), "utf-8")
+        os.replace(hilfsdatei, EINSTELLUNGEN)
+        return e
+
+
 def anschreiben(titel, firma, kategorie):
     e = einstellungen()
     absaetze = e.get("absaetze", {})
@@ -89,7 +115,7 @@ def anschreiben(titel, firma, kategorie):
         e.get("schlussabsatz", ""),
         "Meinen Lebenslauf finden Sie im Anhang. Über eine Einladung zu einem persönlichen Gespräch freue ich mich sehr.",
         "Mit freundlichen Grüßen",
-        "\n".join([e["name"], e["anschrift"], f"{e['telefon']} · {e['gmail']}"]),
+        "\n".join(x for x in [e.get("name", ""), e.get("anschrift", ""), " · ".join(y for y in [e.get("telefon", ""), e.get("gmail", "")] if y)] if x),
     ]
     return "\n\n".join(t for t in teile if t) + "\n"
 
