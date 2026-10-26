@@ -120,11 +120,28 @@ def anschreiben(titel, firma, kategorie):
     return "\n\n".join(t for t in teile if t) + "\n"
 
 
-def vorbereiten(anzeige, volltext):
+def mail_aus_impressum(text):
+    """Adresse aus den rechtlichen Angaben einer Kleinanzeigen-Anzeige (Kontakt der Firma). Vorrang: steht davor "Bewerbung", dann eine Bewerbungs-Adresse
+    (bewerbung@, jobs@, karriere@), sonst die erste mit üblicher Endung."""
+    kandidaten = [m for m in _adressen(text or "") if _endung_ok(m)]
+    for m in kandidaten:
+        i = text.lower().find(m.lower())
+        if "bewerb" in text[max(0, i - 120):i].lower():
+            return m
+    return next((m for m in kandidaten if GUT.search(m)), kandidaten[0] if kandidaten else "")
+
+
+def vorbereiten(anzeige, volltext, impressum=""):
     kat = art(anzeige["titel"])
+    an = mail_finden(volltext)
+    quelle = "anzeige" if an else ""
+    if not an:
+        an = mail_aus_impressum(impressum)
+        quelle = "impressum" if an else ""
     return {
         "id": anzeige["id"],
-        "an": mail_finden(volltext),
+        "an": an,
+        "an_quelle": quelle,  # "impressum": Firmenkontakt aus den rechtlichen Angaben, nicht ausdrücklich für Bewerbungen
         "unsicher": mail_unsicher(volltext),
         "betreff": f"Bewerbung als {stelle(anzeige['titel'])}",
         "text": anschreiben(anzeige["titel"], anzeige.get("firma", ""), kat),
@@ -287,6 +304,9 @@ if __name__ == "__main__":
     assert mail_unsicher("an max.muster@firma-d.der oder jobs@firma.de") == "max.muster@firma-d.der"
     assert mail_finden("bewerbung@firma.group und info@firma.nl") == "bewerbung@firma.group"
     assert mail_finden("Bewerbung an Berlin@Firma-C.de") == "Berlin@Firma-C.de"
+    assert mail_aus_impressum("Rechtliche Angaben Bewerbungen bitte an: Muster GmbH Jobs2@firma-beispiel.de Kontakt filiale@firma-beispiel.de") == "Jobs2@firma-beispiel.de"
+    assert mail_aus_impressum("Rechtliche Angaben Firma Telefon 040 1 E-Mail: info@firma-x.info Internet: www.firma-x.info") == "info@firma-x.info"
+    assert mail_aus_impressum("Rechtliche Angaben Firma Datenschutz: datenschutz@firma.de") == "" and mail_aus_impressum("") == ""
     assert art("Mitarbeiter IT-Support & Administration") == "IT"
     assert art("Disponent Nahverkehr") == "Disposition"
     assert art("Rose B/BRB: Immobilienkaufmann m/w/d") == "Büro"

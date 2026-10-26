@@ -244,6 +244,7 @@ $('vorb').onclick = async () => {
         <label for="h${i}" style="margin:0;color:#1d1d1f">Als Gmail-Entwurf anlegen${b.schon ? (b.schon.gesendet ? ' (schon gesendet am ' + esc(b.schon.gesendet) + ')' : b.schon.sendet ? ' (Versand unklar seit ' + esc(b.schon.sendet) + ')' : b.schon.datum ? ' (schon angelegt am ' + esc(b.schon.datum) + ')' : '') : ''}</label></div>
       <div class="klein fehler" id="kein${i}" ${b.an ? 'hidden' : ''}>${b.lesefehler ? '<b>Anzeigentext konnte nicht geladen werden</b> (' + esc(b.lesefehler) + '), deshalb wurde keine Adresse gesucht. Erneut vorbereiten oder Adresse selbst eintragen.' : '<b>Keine E-Mail-Adresse gefunden.</b> Adresse eintragen oder leer lassen (Entwurf ohne Empfänger).' + (b.unsicher ? ' Im Text steht <b>' + esc(b.unsicher) + '</b> (ungewöhnliche Endung, bitte prüfen und selbst eintragen).' : '')}</div>
       <input type="text" id="an${i}" class="${b.an ? '' : 'leer'}" value="${esc(b.an)}" placeholder="E-Mail-Adresse">
+      <div class="klein" id="quelle${i}" ${b.an_quelle === 'impressum' ? '' : 'hidden'}>Adresse aus den „Rechtlichen Angaben“ der Anzeige (allgemeiner Kontakt der Firma, nicht ausdrücklich für Bewerbungen). Bitte prüfen.</div>
       <input type="text" id="be${i}" value="${esc(b.betreff)}">
       <div class="knoepfe">
         <button class="grau" id="d${i}" style="flex:1">Als Entwurf speichern</button>
@@ -312,6 +313,7 @@ $('vorb').onclick = async () => {
         const da = !!$('an' + i).value.trim();
         if (da && !b.gesendet) $('h' + i).checked = true;
         $('kein' + i).hidden = da;
+        $('quelle' + i).hidden = true;  // wer die Adresse ändert, entscheidet selbst
         $('an' + i).classList.toggle('leer', !da);
         sendenPruefen(i);
       };

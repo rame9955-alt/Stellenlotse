@@ -337,12 +337,24 @@ def gespeicherte():
     return liste
 
 
+# Die "Rechtlichen Angaben" einer Kleinanzeigen-Anzeige stehen im Seitentext, auch wenn sie ausgeblendet sind; Wörter werden mit Leerzeichen getrennt
+IMPRESSUM_JS = """() => {
+  const k = [...document.querySelectorAll('*')].filter(e => e.children.length === 0 && /^\\s*Rechtliche Angaben\\s*$/.test(e.textContent));
+  if (!k.length) return '';
+  let c = k[k.length - 1];
+  for (let i = 0; i < 6 && c.parentElement && c.textContent.length < 200; i++) c = c.parentElement;
+  const t = document.createElement('textarea');
+  t.innerHTML = c.innerHTML.replace(/<[^>]+>/g, ' ');
+  return t.value.replace(/\\s+/g, ' ').trim();
+}"""
+
+
 def _vorbereiten_teil(anzeigen):
     fertig = []
     with ExitStack() as stack:
         pg = None  # der Browser startet erst bei der ersten Kleinanzeigen-Anzeige; Arbeitsagentur und StepStone brauchen ihn nicht
         for a in anzeigen:
-            fehler = ""
+            fehler, impressum = "", ""
             try:
                 if a.get("quelle") == "Arbeitsagentur":
                     nr = base64.b64encode(a["refnr"].encode()).decode()
@@ -359,10 +371,16 @@ def _vorbereiten_teil(anzeigen):
                     text = el.inner_text() if el else ""
                     if not el:
                         fehler = "Anzeigentext nicht gefunden (Seite leer, blockiert oder umgebaut)"
+                    elif not bewerbung.mail_finden(text):  # nur nötig, wenn im Text keine Adresse steht
+                        try:
+                            pg.wait_for_function("document.body.textContent.includes('Rechtliche Angaben')", timeout=3000)
+                        except Exception:
+                            pass  # private Anzeigen haben keinen solchen Bereich
+                        impressum = pg.evaluate(IMPRESSUM_JS) or ""
             except Exception as e:
                 text = ""
                 fehler = (str(e).strip().splitlines() or [type(e).__name__])[0]  # nur die erste Zeile, Playwright hängt ein langes Protokoll an
-            b = bewerbung.vorbereiten(a, text)
+            b = bewerbung.vorbereiten(a, text, impressum)
             if fehler:
                 b["lesefehler"] = fehler  # das Dashboard sagt dann "Text nicht geladen" statt "keine Adresse"
             fertig.append(b)
